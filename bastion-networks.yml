@@ -1,0 +1,120 @@
+heat_template_version: rocky
+
+description: template with one bastion and internal network
+
+parameters:
+  key:
+    type: string
+    description: Key Name
+    default: mac-vm-sep-2019
+  ssh_keys:
+    type: comma_delimited_list
+
+resources:
+  ssh_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: "SSH"
+      name: ssh_security_group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+
+  http_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: "HTTP"
+      name: http_security_group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 80
+          port_range_max: 80
+
+  kubectl_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: "kubectl"
+      name: kubectl_security_group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          # n'importe qui
+          protocol: tcp
+          port_range_min: 6443
+          port_range_max: 6443
+        - remote_ip_prefix: 0.0.0.0/0
+          # n'importe qui
+          protocol: tcp
+          port_range_min: 30300
+          port_range_max: 30300
+
+  internal_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: "Open all the ports inside the private network"
+      # permet toutes les connexions entre les W et Master
+      name: internal_security_group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          direction: ingress
+        - remote_ip_prefix: 0.0.0.0/0
+          direction: egress
+
+  private_net:
+    type: OS::Neutron::Net
+    properties:
+      name: "private_net"
+
+  private_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: private_net }
+      cidr: "192.168.10.0/24"
+      dns_nameservers: [ "192.44.75.10" ]
+      ip_version: 4
+      allocation_pools:
+        - start: "192.168.10.200"
+          end: "192.168.10.254"
+      name: "private_subnet"
+
+  gateway_router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: external
+      name: "gateway_router"
+
+  gateway_router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: gateway_router}
+      subnet_id: { get_resource: private_subnet}
+      
+  bastion_port:
+  #port reseau (=carte reseau de la VM)
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net}
+      security_groups: [ get_resource: ssh_security_group,  get_resource: internal_security_group]
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet}
+          ip_address: 192.168.10.3
+
+  bastion_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: external
+      port_id: { get_resource: bastion_port }
+
+  bastion:
+    type: vm_template.yaml
+    properties:
+      name: bastion
+      flavor: m1.small
+      network_port: { get_resource: bastion_port}
+      ssh_keys: {get_param: ssh_keys}
+
+
+

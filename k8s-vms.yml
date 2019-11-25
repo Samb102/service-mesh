@@ -1,0 +1,112 @@
+heat_template_version: rocky
+
+description: template with four VMs for the a k8s cluster (1 master and three workers)
+
+parameters:
+  ssh_keys:
+    type: comma_delimited_list
+
+resources:
+
+############## Ports
+  k8s_master_1_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: private_net
+      security_groups: [ internal_security_group, kubectl_security_group, http_security_group]
+      fixed_ips:
+        - subnet_id: private_subnet
+          ip_address: 192.168.10.31
+
+
+  k8s_worker_1_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: private_net
+      security_groups: [ internal_security_group, http_security_group]
+      fixed_ips:
+        - subnet_id: private_subnet
+          ip_address: 192.168.10.41
+
+  k8s_worker_2_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: private_net
+      security_groups: [ internal_security_group, http_security_group]
+      fixed_ips:
+        - subnet_id: private_subnet
+          ip_address: 192.168.10.42
+
+  k8s_worker_3_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: private_net
+      security_groups: [ internal_security_group, http_security_group]
+      fixed_ips:
+        - subnet_id: private_subnet
+          ip_address: 192.168.10.43
+
+
+#################### Floating IP ################
+  k8s_master_1_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: external
+      port_id: { get_resource: k8s_master_1_port }
+
+
+  k8s_worker_1_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: external
+      port_id: { get_resource: k8s_worker_1_port }
+
+  k8s_worker_2_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: external
+      port_id: { get_resource: k8s_worker_2_port }
+
+  k8s_worker_3_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: external
+      port_id: { get_resource: k8s_worker_3_port }
+
+
+######### k8s VMs ######################
+
+  k8s_master_1:
+    type: vm_template.yaml
+    properties:
+      name: k8s-master-1
+      flavor: s10.small
+      network_port: { get_resource: k8s_master_1_port}
+      ssh_keys: {get_param: ssh_keys}
+
+  k8s_worker_1:
+    type: vm_template.yaml
+    properties:
+      name: k8s-worker-1
+      flavor: s10.small
+      network_port: { get_resource: k8s_worker_1_port}
+      ssh_keys: {get_param: ssh_keys}
+
+  k8s_worker_2:
+    type: vm_template.yaml
+    properties:
+      name: k8s-worker-2
+      flavor: s10.small
+      network_port: { get_resource: k8s_worker_2_port}
+      ssh_keys: {get_param: ssh_keys}
+
+  k8s_worker_3:
+    type: vm_template.yaml
+    properties:
+      name: k8s-worker-3
+      flavor: s10.small
+      network_port: { get_resource: k8s_worker_3_port}
+      ssh_keys: {get_param: ssh_keys}
+
+      
+
